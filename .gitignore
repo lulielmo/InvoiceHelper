@@ -1,0 +1,21 @@
+# Känslig data
+data/users.xlsx
+create_template.py
+
+# Temporära filer och output
+output/
+logs/
+__pycache__/
+*.pyc
+
+# Virtuell miljö
+venv/
+env/
+
+# IDE-specifika filer
+.vscode/
+.idea/
+
+# Operativsystemsfiler
+.DS_Store
+Thumbs.db 
