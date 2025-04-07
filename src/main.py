@@ -39,10 +39,72 @@ class InvoiceHelper:
         try:
             self.users_data = pd.read_excel(self.users_file, sheet_name='Power BI Users')
             self.project_settings = pd.read_excel(self.users_file, sheet_name='Project Settings')
+            
+            # Validera Project Settings-data
+            required_columns = ['ProjektID', 'Kon/Proj', 'Aktivitet', 'ProjKat', 'Mottagare']
+            missing_columns = [col for col in required_columns if col not in self.project_settings.columns]
+            if missing_columns:
+                logger.warning(f"Varning: Följande kolumner saknas i Project Settings: {', '.join(missing_columns)}")
+            
+            # Normalisera ProjektID (ta bort 'P.' om det finns)
+            self.project_settings['ProjektID'] = self.project_settings['ProjektID'].astype(str).apply(
+                lambda x: x.replace('P.', '') if x.startswith('P.') else x
+            )
+            
             logger.info("Excel-data inläst framgångsrikt")
+            
+            # Logga tillgängliga projekt för felsökning
+            logger.info("Tillgängliga projekt i Project Settings:")
+            for _, row in self.project_settings.iterrows():
+                logger.info(f"- ProjektID: {row['ProjektID']}, Kon/Proj: {row['Kon/Proj']}, Aktivitet: {row['Aktivitet']}")
+            
         except Exception as e:
             logger.error(f"Fel vid inläsning av Excel-data: {str(e)}")
             raise
+
+    def get_project_settings(self, project_id):
+        """Hämtar projektinställningar för ett specifikt projekt."""
+        # Ta bort 'P.' från project_id om det finns
+        search_id = project_id.replace('P.', '') if project_id.startswith('P.') else project_id
+        
+        project = self.project_settings[self.project_settings['ProjektID'] == search_id]
+        
+        if project.empty:
+            logger.warning(f"Kunde inte hitta inställningar för projekt {project_id}")
+            # Returnera standardvärden baserat på projekttyp
+            default_settings = {
+                '20257601': {  # Automation
+                    'Kon/Proj': 'P.20257601',
+                    'Aktivitet': '050',
+                    'ProjKat': '5420',
+                    'Mottagare': 'Digital Utveckling och integration'
+                },
+                '20257407': {  # Microsoft 365
+                    'Kon/Proj': 'P.20257407',
+                    'Aktivitet': '738',
+                    'ProjKat': '5420',
+                    'Mottagare': 'Digital Arbetsplats'
+                },
+                '20257403': {  # Teams Room
+                    'Kon/Proj': 'P.20257403',
+                    'Aktivitet': '738',
+                    'ProjKat': '5420',
+                    'Mottagare': 'Digital Arbetsplats'
+                }
+            }
+            return default_settings.get(search_id, {
+                'Kon/Proj': f'P.{search_id}',
+                'Aktivitet': '738',
+                'ProjKat': '5420',
+                'Mottagare': 'Okänd mottagare'
+            })
+        
+        return {
+            'Kon/Proj': f"P.{project.iloc[0]['ProjektID']}",
+            'Aktivitet': project.iloc[0]['Aktivitet'],
+            'ProjKat': project.iloc[0]['ProjKat'],
+            'Mottagare': project.iloc[0]['Mottagare']
+        }
 
     def extract_text_from_pdf(self, pdf_path):
         """Extraherar text från PDF med OCR."""
@@ -136,7 +198,7 @@ class InvoiceHelper:
                             'Kon/Proj': '5420',
                             '': '',
                             'RG': rg,
-                            'Akt': '738',
+                            'Aktivitet': '738',
                             'ProjKat': '',
                             ' ': '',
                             'Netto': round(num_users * power_bi_info['unit_price'], 2),
@@ -145,7 +207,7 @@ class InvoiceHelper:
                         accounting_rows.append(row)
                         logger.info(f"Lade till Power BI Pro-kontering för RG {rg}: {num_users} användare")
             
-            # 2. Hantera Automation-projekt (P.20257601)
+            # 2. Hantera Automation-projekt (20257601)
             automation_total = 0
             
             # Lägg till Mattias Power BI Pro-licens
@@ -165,21 +227,13 @@ class InvoiceHelper:
                 automation_total += license_info['power_automate_prem']['total']
             
             # Hämta automation-projektinställningar
-            automation_project = self.project_settings[self.project_settings['ProjektID'] == '20257601']
-            if automation_project.empty:
-                logger.warning("Kunde inte hitta automation-projektinställningar, använder standardvärden")
-                automation_project = pd.DataFrame([{
-                    'Kon/Proj': 'P.20257601',
-                    'Akt': '050',
-                    'ProjKat': '5420'
-                }])
-            
+            automation_settings = self.get_project_settings('20257601')
             automation_row = {
-                'Kon/Proj': automation_project.iloc[0]['Kon/Proj'],
+                'Kon/Proj': automation_settings['Kon/Proj'],
                 '': '',
                 'RG': '',
-                'Akt': automation_project.iloc[0]['Akt'],
-                'ProjKat': automation_project.iloc[0]['ProjKat'],
+                'Aktivitet': automation_settings['Aktivitet'],
+                'ProjKat': automation_settings['ProjKat'],
                 ' ': '',
                 'Netto': round(automation_total, 2),
                 'Godkänt av': 'John Munthe'
@@ -187,7 +241,7 @@ class InvoiceHelper:
             accounting_rows.append(automation_row)
             logger.info(f"Lade till Automation-projektkontering: {automation_total} kr")
             
-            # 3. Hantera Microsoft 365-projekt (P.20257407)
+            # 3. Hantera Microsoft 365-projekt (20257407)
             ms365_total = 0
             
             if 'teams_eea' in license_info:
@@ -198,21 +252,13 @@ class InvoiceHelper:
                 ms365_total += license_info['ms365_eea']['total']
             
             # Hämta MS365-projektinställningar
-            ms365_project = self.project_settings[self.project_settings['ProjektID'] == '20257407']
-            if ms365_project.empty:
-                logger.warning("Kunde inte hitta MS365-projektinställningar, använder standardvärden")
-                ms365_project = pd.DataFrame([{
-                    'Kon/Proj': 'P.20257407',
-                    'Akt': '738',
-                    'ProjKat': '5420'
-                }])
-            
+            ms365_settings = self.get_project_settings('20257407')
             ms365_row = {
-                'Kon/Proj': ms365_project.iloc[0]['Kon/Proj'],
+                'Kon/Proj': ms365_settings['Kon/Proj'],
                 '': '',
                 'RG': '',
-                'Akt': ms365_project.iloc[0]['Akt'],
-                'ProjKat': ms365_project.iloc[0]['ProjKat'],
+                'Aktivitet': ms365_settings['Aktivitet'],
+                'ProjKat': ms365_settings['ProjKat'],
                 ' ': '',
                 'Netto': round(ms365_total, 2),
                 'Godkänt av': 'John Munthe'
@@ -220,42 +266,22 @@ class InvoiceHelper:
             accounting_rows.append(ms365_row)
             logger.info(f"Lade till Microsoft 365-projektkontering: {ms365_total} kr")
             
-            # 4. Hantera Teams Room-projekt (P.20257403)
+            # 4. Hantera Teams Room-projekt (20257403)
             if 'teams_rooms' in license_info:
                 # Hämta Teams-projektinställningar
-                teams_project = self.project_settings[self.project_settings['ProjektID'] == '20257403']
-                if teams_project.empty:
-                    logger.warning("Kunde inte hitta Teams-projektinställningar, använder standardvärden")
-                    teams_project = pd.DataFrame([{
-                        'Kon/Proj': 'P.20257403',
-                        'Akt': '738',
-                        'ProjKat': '5420'
-                    }])
-                
+                teams_settings = self.get_project_settings('20257403')
                 teams_row = {
-                    'Kon/Proj': teams_project.iloc[0]['Kon/Proj'],
+                    'Kon/Proj': teams_settings['Kon/Proj'],
                     '': '',
                     'RG': '',
-                    'Akt': teams_project.iloc[0]['Akt'],
-                    'ProjKat': teams_project.iloc[0]['ProjKat'],
+                    'Aktivitet': teams_settings['Aktivitet'],
+                    'ProjKat': teams_settings['ProjKat'],
                     ' ': '',
                     'Netto': round(license_info['teams_rooms']['total'], 2),
                     'Godkänt av': 'John Munthe'
                 }
                 accounting_rows.append(teams_row)
                 logger.info(f"Lade till Teams Room-projektkontering: {license_info['teams_rooms']['total']} kr")
-            
-            # Validera totalsumman
-            total_sum = sum(row['Netto'] for row in accounting_rows)
-            expected_sum = sum(info['total'] for info in license_info.values())
-            if abs(total_sum - expected_sum) > 0.02:  # Tillåt en liten avrundningsskillnad
-                logger.warning(f"Varning: Totalsumma ({total_sum}) matchar inte förväntad summa ({expected_sum})")
-            
-            # Spara konteringsrader som backup
-            self.save_backup(
-                {'accounting_rows': accounting_rows},
-                f'accounting_rows_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-            )
             
             return accounting_rows
             
@@ -267,7 +293,7 @@ class InvoiceHelper:
         """Sparar konteringsrader till Excel i Medius-format."""
         try:
             df = pd.DataFrame(accounting_rows, columns=[
-                'Kon/Proj', '', 'RG', 'Akt', 'ProjKat', '', 'Netto', 'Godkänt av'
+                'Kon/Proj', '', 'RG', 'Aktivitet', 'ProjKat', '', 'Netto', 'Godkänt av'
             ])
             df.to_excel(output_file, index=False)
             logger.info(f"Konteringsrader sparade till {output_file}")
@@ -275,12 +301,25 @@ class InvoiceHelper:
             logger.error(f"Fel vid sparande av konteringsrader: {str(e)}")
             raise
 
+    def _convert_to_serializable(self, obj):
+        """Konverterar NumPy-typer till JSON-serialiserbara typer."""
+        if isinstance(obj, dict):
+            return {key: self._convert_to_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_to_serializable(item) for item in obj]
+        elif hasattr(obj, 'item'):  # NumPy scalar
+            return obj.item()
+        return obj
+
     def save_backup(self, data, filename):
         """Sparar backup av data som JSON."""
         try:
+            # Konvertera data till JSON-serialiserbart format
+            serializable_data = self._convert_to_serializable(data)
+            
             backup_path = os.path.join(self.output_dir, filename)
             with open(backup_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump(serializable_data, f, ensure_ascii=False, indent=2)
             logger.info(f"Backup sparad till {backup_path}")
         except Exception as e:
             logger.error(f"Fel vid sparande av backup: {str(e)}")
@@ -391,38 +430,132 @@ class InvoiceHelper:
             logger.error(f"Fel vid validering av konteringsrader: {str(e)}")
             raise
 
+    def generate_invoice_comment(self, license_info, accounting_rows):
+        """Genererar kommentar för fakturan baserat på licensinformation."""
+        comment_parts = []
+        
+        # 1. Power BI Pro-användare
+        logger.info("Genererar Power BI Pro-användarlista")
+        try:
+            # Filtrera användare som inte är markerade för specialhantering
+            pbi_users = self.users_data[
+                (self.users_data['Specialhantering'].isna()) | 
+                (self.users_data['Specialhantering'] != 'Automation')
+            ].sort_values(['RG', 'Namn'])
+            
+            if not pbi_users.empty:
+                comment_parts.append("\nPower BI Pro-licenser")
+                for _, user in pbi_users.iterrows():
+                    comment_parts.append(f"{user['Namn']}\t{user['RG']}:{user['Kostnadsställe']}")
+        except Exception as e:
+            logger.error(f"Fel vid generering av Power BI Pro-användarlista: {str(e)}")
+            raise
+        
+        # 2. Gruppera övriga licenser per mottagare
+        license_by_receiver = {}
+        
+        # Automation/Digital Utveckling
+        automation_licenses = []
+        if 'power_automate_rpa' in license_info:
+            automation_licenses.append("Power Automate unattended RPA add-on")
+        if 'power_automate_plan' in license_info:
+            automation_licenses.append("Power Automate with att RPA plan")
+        if 'power_automate_prem' in license_info:
+            automation_licenses.append("Power Automate prem")
+        
+        automation_users = self.users_data[self.users_data['Specialhantering'] == 'Automation']
+        if not automation_users.empty:
+            automation_licenses.append("Power BI Pro (Mattias)")
+        
+        if automation_licenses:
+            # Hämta mottagare från Project Settings
+            automation_project = self.project_settings[self.project_settings['ProjektID'] == '20257601']
+            receiver = 'Digital Utveckling och integration'  # Standard
+            if not automation_project.empty and 'Mottagare' in automation_project.columns:
+                receiver = automation_project.iloc[0]['Mottagare']
+            license_by_receiver[receiver] = automation_licenses
+        
+        # Microsoft 365/Digital Arbetsplats
+        ms365_licenses = []
+        if 'teams_eea' in license_info:
+            ms365_licenses.append("MS Teams EEA")
+        if 'copilot' in license_info:
+            ms365_licenses.append("MS Copilot for MS 365")
+        if 'ms365_eea' in license_info:
+            ms365_licenses.append("MS 365 E3 EEA (no Teams)")
+        
+        if ms365_licenses:
+            # Hämta mottagare från Project Settings
+            ms365_project = self.project_settings[self.project_settings['ProjektID'] == '20257407']
+            receiver = 'Digital Arbetsplats'  # Standard
+            if not ms365_project.empty and 'Mottagare' in ms365_project.columns:
+                receiver = ms365_project.iloc[0]['Mottagare']
+            license_by_receiver[receiver] = ms365_licenses
+        
+        # Teams Room/Digital Arbetsplats
+        if 'teams_rooms' in license_info:
+            # Hämta mottagare från Project Settings
+            teams_project = self.project_settings[self.project_settings['ProjektID'] == '20257403']
+            receiver = 'Digital Arbetsplats'  # Standard
+            if not teams_project.empty and 'Mottagare' in teams_project.columns:
+                receiver = teams_project.iloc[0]['Mottagare']
+            
+            if receiver in license_by_receiver:
+                license_by_receiver[receiver].append("MS Teams Rooms Pro")
+            else:
+                license_by_receiver[receiver] = ["MS Teams Rooms Pro"]
+        
+        # Lägg till grupperade licenser i kommentaren
+        for receiver, licenses in license_by_receiver.items():
+            comment_parts.append(f"\nTill {receiver} licenser för {', '.join(licenses)}")
+        
+        return "\n".join(comment_parts)
+
     def process_invoice(self, pdf_path):
-        """Processar en faktura och genererar konteringsrader."""
+        """Huvudfunktion för att processa en faktura."""
         try:
             logger.info(f"Börjar processa faktura: {pdf_path}")
             
             # Extrahera text från PDF
-            text_content = self.extract_text_from_pdf(pdf_path)
+            ocr_text = self.extract_text_from_pdf(pdf_path)
             
-            # Spara OCR-resultat som backup
-            self.save_backup(
-                {'text_content': text_content},
-                f'ocr_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-            )
+            # Spara backup av OCR-text
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.save_backup(ocr_text, f"ocr_backup_{timestamp}.json")
             
-            # Extrahera licensinformation
-            license_info = self.parse_license_info(text_content)
+            # Parsa licensinformation
+            logger.info("Börjar parsning av licensinformation")
+            license_info = self.parse_license_info(ocr_text)
+            
+            # Spara backup av parsad licensinformation
+            self.save_backup(license_info, f"parsed_licenses_{timestamp}.json")
             
             # Generera konteringsrader
+            logger.info("Börjar generera konteringsrader")
             accounting_rows = self.generate_accounting_rows(license_info)
+            
+            # Spara backup av konteringsrader
+            self.save_backup(accounting_rows, f"accounting_rows_{timestamp}.json")
             
             # Validera konteringsrader
             self.validate_accounting_rows(accounting_rows, license_info)
             
-            # Spara till Excel
-            output_file = f'output/kontering_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+            # Generera och skriv ut kommentar
+            comment = self.generate_invoice_comment(license_info, accounting_rows)
+            logger.info("\n=== KOMMENTAR FÖR MEDIUS ===\n")
+            logger.info(comment)
+            logger.info("\n===========================")
+            
+            # Spara konteringsrader till Excel
+            output_file = f"output/kontering_{timestamp}.xlsx"
             self.save_to_excel(accounting_rows, output_file)
+            logger.info(f"Konteringsrader sparade till {output_file}")
             
             logger.info("Faktura processad framgångsrikt")
             return output_file
             
         except Exception as e:
-            logger.error(f"Fel vid processande av faktura: {str(e)}")
+            logger.error(f"Fel vid processning av faktura: {str(e)}")
             raise
 
 def main():
@@ -441,7 +574,7 @@ def main():
         pdf_path = filedialog.askopenfilename(
             title="Välj Atea-faktura (PDF)",
             filetypes=[("PDF-filer", "*.pdf")],
-            initialdir=os.path.expanduser("~\\Downloads")  # Börja i Downloads-mappen
+            initialdir="C:/Users/Public/downloads"  # Ändrat till Public downloads-mappen
         )
         
         if not pdf_path:
