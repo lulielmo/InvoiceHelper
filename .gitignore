@@ -19,3 +19,4 @@ env/
 # Operativsystemsfiler
 .DS_Store
 Thumbs.db 
+data/~$users.xlsx

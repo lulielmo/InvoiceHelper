@@ -137,7 +137,7 @@ class InvoiceHelper:
                 'power_automate_plan': r'CSP -Power Automate with att RPA plan \(cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'teams_eea': r'CSP -MS Teams EEA \(Cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'copilot': r'CSP -MS Copilot for MS 365 \(Corr\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'ms365_eea': r'CSP -MS 365 E3 EEA \(no Teams\) \(Cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'ms365_eea': r'CSP -(?:MS|Microsoft) 365 E3 EEA \(no Teams\) \(Cycle(?:fee)?\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'power_automate_prem': r'CSP -Power Automate prem\. \(Corr\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)'
             }
             
@@ -151,7 +151,6 @@ class InvoiceHelper:
                     quantity = float(quantity.replace(' ', '').replace(',', '.'))
                     unit_price = float(unit_price.replace(' ', '').replace(',', '.'))
                     total = float(total.replace(' ', '').replace(',', '.'))
-                    
                     license_info[license_type] = {
                         'quantity': quantity,
                         'unit_price': unit_price,
@@ -160,6 +159,16 @@ class InvoiceHelper:
                     logger.info(f"Hittade licensinformation för {license_type}: {quantity} st à {unit_price} kr")
                 else:
                     logger.warning(f"Kunde inte hitta information för {license_type}")
+
+            # Extrahera fakturatotalen
+            total_match = re.search(r'Summa Avtal.*?([\d\s]+,\d{2})', text)
+            invoice_total = None
+            if total_match:
+                invoice_total = float(total_match.group(1).replace(' ', '').replace(',', '.'))
+                logger.info(f"Hittade fakturatotal: {invoice_total} kr")
+            else:
+                logger.warning("Kunde inte hitta fakturatotal i texten")
+            license_info['invoice_total'] = invoice_total
             
             # Validera att vi hittat all nödvändig information
             if not license_info:
@@ -370,23 +379,37 @@ class InvoiceHelper:
             logger.info(f"Totalt Microsoft 365: {ms365_total} kr")
             
             # 4. Validera Teams Room-licenser
-            teams_row = next(row for row in accounting_rows if row['Kon/Proj'] == 'P.20257403')
-            teams_total = teams_row['Netto']
-            logger.info(f"\nTeams Room-licenser (P.20257403):")
-            logger.info(f"Totalt Teams Room: {teams_total} kr")
-            
+            teams_proj = 'P.20257403'
+            teams_lic = license_info.get('teams_rooms')
+            if teams_lic:
+                teams_row = next((row for row in accounting_rows if row['Kon/Proj'] == teams_proj), None)
+                if teams_row:
+                    # Validera summan
+                    expected = round(teams_lic['total'] * teams_lic['unit_price'], 2)
+                    actual = round(teams_row['Netto'], 2)
+                    if expected == actual:
+                        logger.info(f"Teams Room ({teams_proj}): {actual} kr [OK]")
+                    else:
+                        logger.warning(f"Teams Room ({teams_proj}): {actual} kr, förväntat {expected} kr [FEL]")
+                else:
+                    logger.warning(f"Ingen konteringsrad hittades för Teams Rooms ({teams_proj}) trots att licensraden finns.")
+            else:
+                logger.info(f"Ingen Teams Rooms-licens på fakturan, hoppar över validering för {teams_proj}.")
+
             # 5. Validera totalsumma
             total_sum = sum(row['Netto'] for row in accounting_rows)
-            expected_sum = sum(info['total'] for info in license_info.values())
-            
+            invoice_total = license_info.get('invoice_total')
             logger.info(f"\n=== SUMMERING ===")
             logger.info(f"Totalsumma från konteringsrader: {total_sum} kr")
-            logger.info(f"Förväntad summa från PDF: {expected_sum} kr")
-            
-            if abs(total_sum - expected_sum) <= 0.02:
-                logger.info("[OK] Totalsumman stämmer med fakturan")
+            if invoice_total is not None:
+                logger.info(f"Fakturatotal från PDF: {invoice_total} kr")
+                if abs(total_sum - invoice_total) <= 0.02:
+                    logger.info("[OK] Totalsumman stämmer med fakturan")
+                else:
+                    # ANSI escape code för röd text: \033[91m ... \033[0m
+                    logger.error(f"\033[91m[FEL] Totalsumman från konteringsrader: {total_sum} kr, fakturatotal: {invoice_total} kr (DIFFERENS: {total_sum-invoice_total} kr)\033[0m")
             else:
-                logger.warning(f"[!] Differens i totalsumma: {total_sum - expected_sum} kr")
+                logger.warning("Ingen fakturatotal tillgänglig för validering.")
             
             # 6. Validera delsummor
             logger.info("\n=== VALIDERING AV DELSUMMOR ===")
@@ -419,10 +442,66 @@ class InvoiceHelper:
             
             # Validera Teams Room
             expected_teams = license_info.get('teams_rooms', {}).get('total', 0)
-            if abs(teams_total - expected_teams) <= 0.02:
-                logger.info("[OK] Teams Room-summan stämmer")
+            teams_row = next((row for row in accounting_rows if row['Kon/Proj'] == 'P.20257403'), None)
+            if teams_row:
+                teams_total = teams_row['Netto']
+                if abs(teams_total - expected_teams) <= 0.02:
+                    logger.info("[OK] Teams Room-summan stämmer")
+                else:
+                    logger.warning(f"[!] Differens i Teams Room-summa: {teams_total - expected_teams} kr")
             else:
-                logger.warning(f"[!] Differens i Teams Room-summa: {teams_total - expected_teams} kr")
+                logger.info("Ingen Teams Room-rad i konteringen, hoppar över validering av Teams Room-summa.")
+
+            # Copilot
+            copilot_proj = 'P.20257407'
+            copilot_lic = license_info.get('copilot')
+            if copilot_lic:
+                copilot_row = next((row for row in accounting_rows if row['Kon/Proj'] == copilot_proj and 'copilot' in row.get('Kommentar', '').lower()), None)
+                if copilot_row:
+                    expected = round(copilot_lic['total'] * copilot_lic['unit_price'], 2)
+                    actual = round(copilot_row['Netto'], 2)
+                    if expected == actual:
+                        logger.info(f"Copilot ({copilot_proj}): {actual} kr [OK]")
+                    else:
+                        logger.warning(f"Copilot ({copilot_proj}): {actual} kr, förväntat {expected} kr [FEL]")
+                else:
+                    logger.warning(f"Ingen konteringsrad hittades för Copilot ({copilot_proj}) trots att licensraden finns.")
+            else:
+                logger.info(f"Ingen Copilot-licens på fakturan, hoppar över validering för {copilot_proj}.")
+
+            # MS365 EEA
+            ms365_proj = 'P.20257407'
+            ms365_lic = license_info.get('ms365_eea')
+            if ms365_lic:
+                ms365_row = next((row for row in accounting_rows if row['Kon/Proj'] == ms365_proj and 'ms365' in row.get('Kommentar', '').lower()), None)
+                if ms365_row:
+                    expected = round(ms365_lic['total'] * ms365_lic['unit_price'], 2)
+                    actual = round(ms365_row['Netto'], 2)
+                    if expected == actual:
+                        logger.info(f"MS365 EEA ({ms365_proj}): {actual} kr [OK]")
+                    else:
+                        logger.warning(f"MS365 EEA ({ms365_proj}): {actual} kr, förväntat {expected} kr [FEL]")
+                else:
+                    logger.warning(f"Ingen konteringsrad hittades för MS365 EEA ({ms365_proj}) trots att licensraden finns.")
+            else:
+                logger.info(f"Ingen MS365 EEA-licens på fakturan, hoppar över validering för {ms365_proj}.")
+
+            # Power Automate Prem
+            prem_proj = 'P.20257601'
+            prem_lic = license_info.get('power_automate_prem')
+            if prem_lic:
+                prem_row = next((row for row in accounting_rows if row['Kon/Proj'] == prem_proj and 'prem' in row.get('Kommentar', '').lower()), None)
+                if prem_row:
+                    expected = round(prem_lic['total'] * prem_lic['unit_price'], 2)
+                    actual = round(prem_row['Netto'], 2)
+                    if expected == actual:
+                        logger.info(f"Power Automate Prem ({prem_proj}): {actual} kr [OK]")
+                    else:
+                        logger.warning(f"Power Automate Prem ({prem_proj}): {actual} kr, förväntat {expected} kr [FEL]")
+                else:
+                    logger.warning(f"Ingen konteringsrad hittades för Power Automate Prem ({prem_proj}) trots att licensraden finns.")
+            else:
+                logger.info(f"Ingen Power Automate Prem-licens på fakturan, hoppar över validering för {prem_proj}.")
             
             logger.info("\n=== VALIDERING SLUTFÖRD ===")
             
