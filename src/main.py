@@ -131,32 +131,45 @@ class InvoiceHelper:
             
             # Definiera licenstyper att leta efter
             license_patterns = {
-                'power_bi': r'CSP -Power BI Pro \(cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'power_automate_rpa': r'CSP -Power Automate unattended RPA add-on \(Cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'teams_rooms': r'CSP -MS Teams Rooms Pro \(Cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'power_automate_plan': r'CSP -Power Automate with att RPA plan \(cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'teams_eea': r'CSP -MS Teams EEA \(Cycle\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'copilot': r'CSP -MS Copilot for MS 365 \(Corr\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'ms365_eea': r'CSP -(?:MS|Microsoft) 365 E3 EEA \(no Teams\) \(Cycle(?:fee)?\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'power_automate_prem': r'CSP -Power Automate prem\. \(Corr\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)'
+                'power_bi': r'CSP -Power BI Pro \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'power_automate_rpa': r'CSP -Power Automate unattended RPA add-on \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'teams_rooms': r'CSP -MS Teams Rooms Pro \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'power_automate_plan': r'CSP -Power Automate with att RPA plan \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'teams_eea': r'CSP -(?:MS|Microsoft) Teams EEA \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'copilot': r'CSP -MS Copilot for MS 365 \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'ms365_eea': r'CSP -(?:MS|Microsoft) 365 E3 EEA \(no Teams\) \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'power_automate_prem': r'CSP -Power Automate prem\. \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)'
             }
             
             # Extrahera information för varje licenstyp
             license_info = {}
             for license_type, pattern in license_patterns.items():
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    quantity, unit_price, total = match.groups()
-                    # Rensa och konvertera värden
-                    quantity = float(quantity.replace(' ', '').replace(',', '.'))
-                    unit_price = float(unit_price.replace(' ', '').replace(',', '.'))
-                    total = float(total.replace(' ', '').replace(',', '.'))
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                if matches:
+                    total_quantity = 0
+                    total_amount = 0
+                    unit_prices = []
+                    
+                    for match in matches:
+                        quantity, unit_price, total = match
+                        # Rensa och konvertera värden
+                        quantity = float(quantity.replace(' ', '').replace(',', '.'))
+                        unit_price = float(unit_price.replace(' ', '').replace(',', '.'))
+                        total = float(total.replace(' ', '').replace(',', '.'))
+                        
+                        total_quantity += quantity
+                        total_amount += total
+                        unit_prices.append(unit_price)
+                    
+                    # Beräkna genomsnittligt styckpris
+                    avg_unit_price = sum(unit_prices) / len(unit_prices) if unit_prices else 0
+                    
                     license_info[license_type] = {
-                        'quantity': quantity,
-                        'unit_price': unit_price,
-                        'total': total
+                        'quantity': total_quantity,
+                        'unit_price': avg_unit_price,
+                        'total': total_amount
                     }
-                    logger.info(f"Hittade licensinformation för {license_type}: {quantity} st à {unit_price} kr")
+                    logger.info(f"Hittade {len(matches)} rader för {license_type}: totalt {total_quantity} st à {avg_unit_price:.2f} kr = {total_amount} kr")
                 else:
                     logger.warning(f"Kunde inte hitta information för {license_type}")
 
