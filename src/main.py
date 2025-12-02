@@ -129,8 +129,21 @@ class InvoiceHelper:
         try:
             logger.info("Börjar parsning av licensinformation")
             
-            # Definiera licenstyper att leta efter
-            license_patterns = {
+            # Först försök med nya formatet (SKU-kod + produktnamn på två rader)
+            # Nya formatet: SKU-rad med periodtyp, sedan indenterad produktnamn-rad
+            new_format_patterns = {
+                'power_bi': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power BI Pro',
+                'power_automate_rpa': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power Automate unattended RPA add-on',
+                'power_automate_plan': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power Automate (?:per user with attended RPA plan|with att RPA plan)',
+                'teams_rooms': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Teams Rooms Pro',
+                'teams_eea': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Teams EEA',
+                'copilot': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Copilot for (?:MS|Microsoft) 365',
+                'ms365_eea': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) 365 E3 EEA \(no Teams\)',
+                'power_automate_prem': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power Automate prem\.?'
+            }
+            
+            # Gamla formatet (för bakåtkompatibilitet)
+            old_format_patterns = {
                 'power_bi': r'CSP -Power BI Pro \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'power_automate_rpa': r'CSP -Power Automate unattended RPA add-on \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'teams_rooms': r'CSP -MS Teams Rooms Pro \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
@@ -141,16 +154,27 @@ class InvoiceHelper:
                 'power_automate_prem': r'CSP -Power Automate prem\. \((?:Cycle(?:fee)?|Correction|Corr)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)'
             }
             
-            # Extrahera information för varje licenstyp
+            # Extrahera information för varje licenstyp - matcha både nya och gamla formatet
             license_info = {}
-            for license_type, pattern in license_patterns.items():
-                matches = re.findall(pattern, text, re.IGNORECASE)
-                if matches:
+            for license_type in new_format_patterns.keys():
+                all_matches = []
+                
+                # Försök matcha nya formatet först
+                new_matches = re.findall(new_format_patterns[license_type], text, re.IGNORECASE | re.MULTILINE)
+                if new_matches:
+                    all_matches.extend(new_matches)
+                
+                # Försök matcha gamla formatet
+                old_matches = re.findall(old_format_patterns[license_type], text, re.IGNORECASE | re.MULTILINE)
+                if old_matches:
+                    all_matches.extend(old_matches)
+                
+                if all_matches:
                     total_quantity = 0
                     total_amount = 0
                     unit_prices = []
                     
-                    for match in matches:
+                    for match in all_matches:
                         quantity, unit_price, total = match
                         # Rensa och konvertera värden
                         quantity = float(quantity.replace(' ', '').replace(',', '.'))
@@ -169,7 +193,7 @@ class InvoiceHelper:
                         'unit_price': avg_unit_price,
                         'total': total_amount
                     }
-                    logger.info(f"Hittade {len(matches)} rader för {license_type}: totalt {total_quantity} st à {avg_unit_price:.2f} kr = {total_amount} kr")
+                    logger.info(f"Hittade {len(all_matches)} rader för {license_type}: totalt {total_quantity} st à {avg_unit_price:.2f} kr = {total_amount} kr")
                 else:
                     logger.warning(f"Kunde inte hitta information för {license_type}")
 
