@@ -245,6 +245,7 @@ class InvoiceHelper:
                             '': '',
                             'RG': rg,
                             'Aktivitet': '738',
+                            'ProjAkt': '',
                             'ProjKat': '',
                             ' ': '',
                             'Netto': round(num_users * power_bi_info['unit_price'], 2),
@@ -279,6 +280,7 @@ class InvoiceHelper:
                 '': '',
                 'RG': '',
                 'Aktivitet': automation_settings['Aktivitet'],
+                'ProjAkt': '',
                 'ProjKat': automation_settings['ProjKat'],
                 ' ': '',
                 'Netto': round(automation_total, 2),
@@ -304,6 +306,7 @@ class InvoiceHelper:
                 '': '',
                 'RG': '',
                 'Aktivitet': ms365_settings['Aktivitet'],
+                'ProjAkt': '',
                 'ProjKat': ms365_settings['ProjKat'],
                 ' ': '',
                 'Netto': round(ms365_total, 2),
@@ -321,6 +324,7 @@ class InvoiceHelper:
                     '': '',
                     'RG': '',
                     'Aktivitet': teams_settings['Aktivitet'],
+                    'ProjAkt': '',
                     'ProjKat': teams_settings['ProjKat'],
                     ' ': '',
                     'Netto': round(license_info['teams_rooms']['total'], 2),
@@ -339,7 +343,7 @@ class InvoiceHelper:
         """Sparar konteringsrader till Excel i Medius-format."""
         try:
             df = pd.DataFrame(accounting_rows, columns=[
-                'Kon/Proj', '', 'RG', 'Aktivitet', 'ProjKat', '', 'Netto', 'Godkänt av'
+                'Kon/Proj', '', 'RG', 'Aktivitet', 'ProjAkt', 'ProjKat', '', 'Netto', 'Godkänt av'
             ])
             df.to_excel(output_file, index=False)
             logger.info(f"Konteringsrader sparade till {output_file}")
