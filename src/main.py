@@ -137,7 +137,7 @@ class InvoiceHelper:
                 'power_automate_plan': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power Automate (?:per user with attended RPA plan|with att RPA plan)',
                 'teams_rooms': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Teams Rooms Pro',
                 'teams_eea': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Teams EEA',
-                'copilot': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:MS|Microsoft) Copilot for (?:MS|Microsoft) 365',
+                'copilot': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:(?:MS|Microsoft) Copilot for (?:MS|Microsoft) 365|(?:MS|Microsoft) 365 Copilot)',
                 'ms365_eea': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*(?:(?:MS|Microsoft) 365 E3 EEA \(no Teams\)|Microsoft 365 Apps for enterprise)',
                 'power_automate_prem': r'[A-Z0-9]+/skus/\d+\s+-\s+(?:Cycle(?:Fee)?|Correction|Corr|PurchaseFee)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)\s*[\r\n]+\s*Power Automate prem\.?'
             }
@@ -149,7 +149,7 @@ class InvoiceHelper:
                 'teams_rooms': r'CSP -MS Teams Rooms Pro \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'power_automate_plan': r'CSP -Power Automate with att RPA plan \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'teams_eea': r'CSP -(?:MS|Microsoft) Teams EEA \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
-                'copilot': r'CSP -MS Copilot for MS 365 \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
+                'copilot': r'CSP -(?:(?:MS|Microsoft) Copilot for (?:MS|Microsoft) 365|(?:MS|Microsoft) 365 Copilot) \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'ms365_eea': r'CSP -(?:(?:MS|Microsoft) 365 E3 EEA \(no Teams\)|Microsoft 365 Apps for enterprise) \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)',
                 'power_automate_prem': r'CSP -Power Automate prem\. \((?:Cycle(?:fee)?|Correction|Corr|PurchaseFee)\)\s+\d{6}\s+-\s+\d{6}\s+(\d+,\d+)\s+ST\s+(\d+[\s,]*\d*,\d+)\s+(\d+[\s,]*\d*,\d+)'
             }
